@@ -1,28 +1,48 @@
 #include <AltSoftSerial.h>
-//#include <SoftwareSerial.h>
 
-int rxPin = 10;
-int txPin = 11;
-//SoftwareSerial controller(rxPin, txPin);
+/* Arduino GPIO PINS IN USE */
+#define LED_PIN 6
+/* PINS 8, 9 and 10 are all effectively used by AltSoftSerial */
+
+#define LF 10
+
+#define COMMAND_BUFFER_LEN 100
+#define CMD_HELLO_LEN 6
+#define CMD_HELLO "HELLO"
+#define CMD_GOODBYE_LEN 7
+#define CMD_GOODBYE "GOODBYE"
+#define CMD_PANEL_OFF_LEN 8
+#define CMD_PANEL_OFF "PANELOFF"
+#define CMD_SET_TEMPO_LEN 8
+#define CMD_SET_TEMPO "SETTEMPO"
+#define CMD_PLAY_LEN 4
+#define CMD_PLAY "PLAY"
+#define CMD_RESET_LEN 5
+#define CMD_STOP_LEN 4
+#define CMD_STOP "STOP"
+#define CMD_SETCOLOR_LEN 8
+#define CMD_SETCOLOR "SETCOLOR"
+#define CMD_ON_LEN 2
+#define CMD_ON "ON"
+#define CMD_OFF_LEN 3
+#define CMD_OFF "OFF"
+
+void processHelloCommand(AltSoftSerial *controller);
+void processGoodbyeCommand(AltSoftSerial *controller);
+
 AltSoftSerial controller;
-int indicatorPin = 6;
-int LF = 10;
-const int COMMAND_BUFFER_LEN = 100;
-bool commandComplete = false;
-int commandLen = 0;
-char commandBuffer[COMMAND_BUFFER_LEN];
-const int CMD_HELLO_LEN = 6;
-char CMD_HELLO[CMD_HELLO_LEN] = "HELLO";
-const int CMD_GOODBYE_LEN = 7;
-char CMD_GOODBYE[CMD_GOODBYE_LEN] = "GOODBYE";
+
+static bool commandComplete = false;
+static int commandLen = 0;
+static char commandBuffer[COMMAND_BUFFER_LEN];
 
 static void readSerialToCommandBuffer();
 static void processCommand();
 
 void setup() {
   // Initialize our connected indicator LED
-  pinMode(indicatorPin, OUTPUT);
-  digitalWrite(indicatorPin, LOW);
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
   
   // Initialize Serial Port for console communications
   Serial.begin(9600);
@@ -45,11 +65,6 @@ void loop() {
       processCommand();
     }
   }
-  /*else {
-    Serial.println("Sending PING");
-    controller.println("PING");
-    delay(1000);
-  }*/
 }
 
 static void readSerialToCommandBuffer() {
@@ -72,25 +87,11 @@ static void resetCommandBuffer() {
 static void processCommand() {
   if (strncmp(CMD_HELLO, commandBuffer, CMD_HELLO_LEN) == 0) {
     resetCommandBuffer();
-    Serial.println("Received HELLO command, turning on LED");
-    
-    // Turn on the LED
-    digitalWrite(indicatorPin, HIGH);
-
-    // Respond to HELLO
-    Serial.println("Sending READY response");
-    controller.println("READY");
+    processHelloCommand(&controller);
   }
   else if (strncmp(CMD_GOODBYE, commandBuffer, CMD_GOODBYE_LEN) == 0) {
     resetCommandBuffer();
-    Serial.println("Received GOODBYE command, turning off LED");
-
-    // Turn off the LED
-    digitalWrite(indicatorPin, LOW);
-
-    // Response to GOODBYE
-    Serial.println("Sending SHUTDOWN response");
-    controller.println("SHUTDOWN");
+    processGoodbyeCommand(&controller);
   }
 }
 
