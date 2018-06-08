@@ -1,3 +1,4 @@
+
 int extractArgs(String *outBuffer, size_t outBufferLength, char *args) {
   String argString(args);
   int lastSpaceIndex = 0;
@@ -62,6 +63,9 @@ void processHelloCommand(AltSoftSerial *controller) {
 void processGoodbyeCommand(AltSoftSerial *controller) {
     Serial.println("Received GOODBYE command, turning off LED");
 
+    // Turn the panel off
+    tempoLine.Stop();
+    
     // Turn off the LED
     digitalWrite(LED_PIN, LOW);
 
@@ -73,7 +77,10 @@ void processGoodbyeCommand(AltSoftSerial *controller) {
 void processCommandPanelOff(AltSoftSerial *controller) {
   Serial.println("Turning off panel");
 
-  // TODO - turn panel off
+  tempoLine.Stop();
+  tempoLine.Reset();
+  
+  // TODO - Stop any other animations
   
   controller->println("OFF");
 }
@@ -81,13 +88,33 @@ void processCommandPanelOff(AltSoftSerial *controller) {
 void processSetTempoCommand(AltSoftSerial *controller, char *args) {
   String argString(args);
   int tempo = argString.toInt();
+  long int tempoStepMs = floor(60 / (float)tempo * 1000);
 
   Serial.print("Setting panel tempo to ");
   Serial.println(tempo, DEC);
+
+  tempoLine.Interval = tempoStepMs;
   
   // TODO - set tempo to value
   controller->print("TEMPO ");
   controller->println(tempo, DEC);
+}
+
+void processPlayCommand(AltSoftSerial *controller, char *args) {
+  String argString(args);
+  int row = argString.toInt();
+
+  Serial.print("Starting panel row ");
+  Serial.println(row, DEC);
+  
+  switch(row) {
+    case 0:
+      tempoLine.Start();
+      break;
+  }
+  
+  controller->print("PLAYING ");
+  controller->println(row, DEC);
 }
 
 void processResetCommand(AltSoftSerial *controller, char *args) {
@@ -97,7 +124,11 @@ void processResetCommand(AltSoftSerial *controller, char *args) {
   Serial.print("Resetting row");
   Serial.println(row, DEC);
   
-  // TODO - set tempo to value
+  switch(row) {
+    case 0:
+      tempoLine.Reset();
+      break;
+  }
   controller->print("OK ");
   controller->println(row, DEC);
 }
@@ -109,12 +140,20 @@ void processStopCommand(AltSoftSerial *controller, char *args) {
   Serial.print("Stopping Requested Row Display: ");
   Serial.println(argInts[0], DEC);
 
-  // TODO - stop the pattern
-
+  switch(argInts[0]) {
+    case 0:
+      tempoLine.Stop();
+      break;
+  }
+  
   if (argInts[1] == 1) {
     Serial.println("Resetting Stopped Row");
 
-    // TODO - reset the pattern
+    switch(argInts[0]) {
+      case 0:
+        tempoLine.Reset();
+        break;
+    }
   }
   
   controller->print("STOPPED ");
@@ -143,7 +182,28 @@ void processSetColorCommand(AltSoftSerial *controller, char *args) {
   Serial.print(argFloats[0], DEC);
   Serial.println(")");
 
-  // TODO - Set the color
+  float alphaVal = argFloats[0] == -1 ? 1.0 : argFloats[0];
+  uint8_t alpha = (uint8_t)((uint32_t)round(alphaVal * 255) & 0xFF);
+  uint8_t red = (uint8_t)((argInts[2] == -1 ? 0 : argInts[2]) & 0xFF);
+  uint8_t green = (uint8_t)((argInts[3] == -1 ? 0 : argInts[3]) & 0xFF);
+  uint8_t blue = (uint8_t)((argInts[4] == -1 ? 0 : argInts[4]) & 0xFF);
+  
+  Serial.print("Converted Colors (");
+  Serial.print(red, HEX);
+  Serial.print(",");
+  Serial.print(green, HEX);
+  Serial.print(",");
+  Serial.print(blue, HEX);
+  Serial.println(")");
+
+  switch(argInts[0]) {
+    case 0:
+      // Row 0 only supports setting a single color at this time
+      tempoLine.SetColor(0, red, green, blue, alpha);
+      break;
+      
+    // TODO - Set the color on other lines
+  }
 
   controller->println("DONE");  
 }
@@ -162,6 +222,12 @@ void processSetLedOnCommand(AltSoftSerial *controller, char *args) {
   Serial.print(argInts[1], DEC);
   Serial.println(")");
 
+  switch(argInts[0]) {
+    case 0:
+      // Do nothing (not supported)
+      break;
+  }
+  
   // TODO - Turn on the LED
 
   if (argInts[2] >= 0) {
@@ -196,7 +262,12 @@ void processSetLedOffCommand(AltSoftSerial *controller, char *args) {
   Serial.println(")");
 
   // TODO - Turn off the LED
-
+  switch(argInts[0]) {
+    case 0:
+      // Do nothing (not supported)
+      break;
+  }
+  
   if (argInts[2] >= 0) {
     Serial.print("Setting LED Color RGBA (");
     Serial.print(argInts[2], DEC);

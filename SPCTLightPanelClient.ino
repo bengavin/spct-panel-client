@@ -1,8 +1,17 @@
+#undef round
+
+#include <math.h>
 #include <AltSoftSerial.h>
+#include <Adafruit_NeoPixel.h>
+#include "NeoAnimator.h"
 
 /* Arduino GPIO PINS IN USE */
 #define LED_PIN 6
 /* PINS 8, 9 and 10 are all effectively used by AltSoftSerial */
+#define TEMPO_PIN 13
+#define CNT_TEMPO_LIGHTS 8
+
+NeoAnimator tempoLine = NeoAnimator(CNT_TEMPO_LIGHTS, TEMPO_PIN, NEO_RGB + NEO_KHZ800, NULL);
 
 #define LF 10
 
@@ -35,6 +44,7 @@ void processGoodbyeCommand(AltSoftSerial *controller);
 void processCommandPanelOff(AltSoftSerial *controller);
 void processSetTempoCommand(AltSoftSerial *controller, char *args);
 void processResetCommand(AltSoftSerial *controller, char *args);
+void processPlayCommand(AltSoftSerial *controller, char *args);
 void processStopCommand(AltSoftSerial *controller, char *args);
 void processSetColorCommand(AltSoftSerial *controller, char *args);
 void processSetLedOnCommand(AltSoftSerial *controller, char *args);
@@ -61,6 +71,10 @@ void setup() {
   }
 
   controller.begin(9600);
+  tempoLine.begin();
+  tempoLine.show(); // all off
+
+  tempoLine.InitializeTempoTracker(0xFFFFFFFF, floor(60 / (float)120 * 1000));
 }
 
 void loop() {
@@ -75,6 +89,8 @@ void loop() {
       processCommand();
     }
   }
+
+  tempoLine.Update();
 }
 
 static void readSerialToCommandBuffer() {
@@ -110,6 +126,9 @@ static void processCommand() {
   }
   else if (strncmp(CMD_RESET, commandBuffer, CMD_RESET_LEN) == 0) {
     processResetCommand(&controller, &commandBuffer[CMD_RESET_LEN]);
+  }
+  else if (strncmp(CMD_PLAY, commandBuffer, CMD_PLAY_LEN) == 0) {
+    processPlayCommand(&controller, &commandBuffer[CMD_PLAY_LEN]);
   }
   else if (strncmp(CMD_STOP, commandBuffer, CMD_STOP_LEN) == 0) {
     processStopCommand(&controller, &commandBuffer[CMD_STOP_LEN]);
