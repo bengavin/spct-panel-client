@@ -55,6 +55,31 @@ void processHelloCommand(AltSoftSerial *controller) {
     // Turn on the LED
     digitalWrite(LED_PIN, HIGH);
 
+    // Run through test procedure
+    tempoLine.ClearColor(255,0,0);
+    bank1Line.ClearColor(0,255,0);
+    bank2Line.ClearColor(0,0,255);
+    delay(500);
+    tempoLine.ClearColor(0,255,0);
+    bank1Line.ClearColor(0,0,255);
+    bank2Line.ClearColor(255,0,0);
+    delay(500);
+    tempoLine.ClearColor(0,0,255);
+    bank1Line.ClearColor(255,0,0);
+    bank2Line.ClearColor(0,255,0);
+    delay(500);
+    tempoLine.ClearColor(255,255,255);
+    bank1Line.ClearColor(255,255,255);
+    bank2Line.ClearColor(255,255,255);
+    delay(500);
+    tempoLine.ClearColor(255,255,255,128);
+    bank1Line.ClearColor(255,255,255,128);
+    bank2Line.ClearColor(255,255,255,128);
+    delay(500);
+    tempoLine.Reset();
+    bank1Line.Reset();
+    bank2Line.Reset();
+
     // Respond to HELLO
     Serial.println("Sending READY response");
     controller->println("READY");
@@ -65,6 +90,13 @@ void processGoodbyeCommand(AltSoftSerial *controller) {
 
     // Turn the panel off
     tempoLine.Stop();
+    tempoLine.Reset();
+
+    bank1Line.Stop();
+    bank1Line.Reset();
+
+    bank2Line.Stop();
+    bank2Line.Reset();
     
     // Turn off the LED
     digitalWrite(LED_PIN, LOW);
@@ -80,8 +112,12 @@ void processCommandPanelOff(AltSoftSerial *controller) {
   tempoLine.Stop();
   tempoLine.Reset();
   
-  // TODO - Stop any other animations
-  
+  bank1Line.Stop();
+  bank1Line.Reset();
+
+  bank2Line.Stop();
+  bank2Line.Reset();
+
   controller->println("OFF");
 }
 
@@ -95,7 +131,6 @@ void processSetTempoCommand(AltSoftSerial *controller, char *args) {
 
   tempoLine.Interval = tempoStepMs;
   
-  // TODO - set tempo to value
   controller->print("TEMPO ");
   controller->println(tempo, DEC);
 }
@@ -110,6 +145,14 @@ void processPlayCommand(AltSoftSerial *controller, char *args) {
   switch(row) {
     case 0:
       tempoLine.Start();
+      break;
+
+    case 1:
+      bank1Line.Start();
+      break;
+
+    case 2:
+      bank2Line.Start();
       break;
   }
   
@@ -128,7 +171,16 @@ void processResetCommand(AltSoftSerial *controller, char *args) {
     case 0:
       tempoLine.Reset();
       break;
+
+    case 1:
+      bank1Line.Reset();
+      break;
+
+    case 2:
+      bank2Line.Reset();
+      break;
   }
+  
   controller->print("OK ");
   controller->println(row, DEC);
 }
@@ -144,6 +196,14 @@ void processStopCommand(AltSoftSerial *controller, char *args) {
     case 0:
       tempoLine.Stop();
       break;
+      
+    case 1:
+      bank1Line.Stop();
+      break;
+
+    case 2:
+      bank2Line.Stop();
+      break;
   }
   
   if (argInts[1] == 1) {
@@ -152,6 +212,14 @@ void processStopCommand(AltSoftSerial *controller, char *args) {
     switch(argInts[0]) {
       case 0:
         tempoLine.Reset();
+        break;
+        
+      case 1:
+        bank1Line.Reset();
+        break;
+  
+      case 2:
+        bank2Line.Reset();
         break;
     }
   }
@@ -201,8 +269,14 @@ void processSetColorCommand(AltSoftSerial *controller, char *args) {
       // Row 0 only supports setting a single color at this time
       tempoLine.SetColor(0, red, green, blue, alpha);
       break;
-      
-    // TODO - Set the color on other lines
+
+    case 1:
+      bank1Line.setPixelColor(argInts[1], red, green, blue);
+      break;
+
+    case 2:
+      bank2Line.setPixelColor(argInts[1], red, green, blue);
+      break;
   }
 
   controller->println("DONE");  
@@ -222,15 +296,13 @@ void processSetLedOnCommand(AltSoftSerial *controller, char *args) {
   Serial.print(argInts[1], DEC);
   Serial.println(")");
 
-  switch(argInts[0]) {
-    case 0:
-      // Do nothing (not supported)
-      break;
-  }
-  
-  // TODO - Turn on the LED
-
   if (argInts[2] >= 0) {
+    float alphaVal = argFloats[0] == -1 ? 1.0 : argFloats[0];
+    uint8_t alpha = (uint8_t)((uint32_t)round(alphaVal * 255) & 0xFF);
+    uint8_t red = (uint8_t)((argInts[2] == -1 ? 0 : argInts[2]) & 0xFF);
+    uint8_t green = (uint8_t)((argInts[3] == -1 ? 0 : argInts[3]) & 0xFF);
+    uint8_t blue = (uint8_t)((argInts[4] == -1 ? 0 : argInts[4]) & 0xFF);
+  
     Serial.print("Setting LED Color RGBA (");
     Serial.print(argInts[2], DEC);
     Serial.print(",");
@@ -241,7 +313,30 @@ void processSetLedOnCommand(AltSoftSerial *controller, char *args) {
     Serial.print(argFloats[0], DEC);
     Serial.println(")");
 
-    // TODO - Set LED Color
+    switch(argInts[0])
+    {
+      case 1:
+        bank1Line.setPixelColor(argInts[1], red, green, blue);
+        break;
+
+      case 2:
+        bank2Line.setPixelColor(argInts[1], red, green, blue);
+        break;
+     }
+  }
+
+  switch(argInts[0]) {
+    case 0:
+      // Do nothing (not supported)
+      break;
+
+    case 1:
+      bank1Line.show();
+      break;
+
+    case 2:
+      bank2Line.show();
+      break;
   }
 
   controller->println("DONE");  
@@ -251,7 +346,8 @@ void processSetLedOffCommand(AltSoftSerial *controller, char *args) {
   int argInts[] = {-1, -1, -1, -1, -1};
   int lastIndex = extractArgs(argInts, 5, args);
   float argFloats[] = { -1.0 };
-  if (lastIndex >= 0) {
+  if (lastIndex >= 0) 
+  {
     extractArgs(argFloats, 1, &args[lastIndex]);
   }
 
@@ -262,13 +358,31 @@ void processSetLedOffCommand(AltSoftSerial *controller, char *args) {
   Serial.println(")");
 
   // TODO - Turn off the LED
-  switch(argInts[0]) {
+  switch(argInts[0]) 
+  {
     case 0:
       // Do nothing (not supported)
       break;
+      
+    case 1:
+      bank1Line.setPixelColor(argInts[1], 0, 0, 0);
+      bank1Line.show();
+      break;
+      
+    case 2:
+      bank2Line.setPixelColor(argInts[1], 0, 0, 0);
+      bank2Line.show();
+      break;
   }
   
-  if (argInts[2] >= 0) {
+  if (argInts[2] >= 0) 
+  {
+    float alphaVal = argFloats[0] == -1 ? 1.0 : argFloats[0];
+    uint8_t alpha = (uint8_t)((uint32_t)round(alphaVal * 255) & 0xFF);
+    uint8_t red = (uint8_t)((argInts[2] == -1 ? 0 : argInts[2]) & 0xFF);
+    uint8_t green = (uint8_t)((argInts[3] == -1 ? 0 : argInts[3]) & 0xFF);
+    uint8_t blue = (uint8_t)((argInts[4] == -1 ? 0 : argInts[4]) & 0xFF);
+  
     Serial.print("Setting LED Color RGBA (");
     Serial.print(argInts[2], DEC);
     Serial.print(",");
@@ -279,7 +393,16 @@ void processSetLedOffCommand(AltSoftSerial *controller, char *args) {
     Serial.print(argFloats[0], DEC);
     Serial.println(")");
 
-    // TODO - Set LED Color
+    switch(argInts[0])
+    {
+      case 1:
+        bank1Line.setPixelColor(argInts[1], red, green, blue);
+        break;
+
+      case 2:
+        bank2Line.setPixelColor(argInts[1], red, green, blue);
+        break;
+     }
   }
 
   controller->println("DONE");

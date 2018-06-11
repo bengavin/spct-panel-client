@@ -234,6 +234,16 @@ class NeoAnimator : public Adafruit_NeoPixel
         // Then get a properly sorted color value
         Colors[index] = Color(r, g, b);
     }
+
+    void ClearColor(uint8_t r, uint8_t g, uint8_t b, uint8_t alpha = 255)
+    {
+      // First, pre-multiply our alpha value
+      r = (r * alpha / 255) & 0xFF;
+      g = (g * alpha / 255) & 0xFF;
+      b = (b * alpha / 255) & 0xFF;
+
+      ColorSet(Color(r,g,b));
+    }
     
     /* Tempo Tracker */
   private:

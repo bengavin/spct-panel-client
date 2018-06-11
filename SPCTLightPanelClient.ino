@@ -10,8 +10,14 @@
 /* PINS 8, 9 and 10 are all effectively used by AltSoftSerial */
 #define TEMPO_PIN 13
 #define CNT_TEMPO_LIGHTS 8
+#define BANK_1_PIN 12
+#define CNT_BANK_1_LIGHTS 8
+#define BANK_2_PIN 11
+#define CNT_BANK_2_LIGHTS 8
 
 NeoAnimator tempoLine = NeoAnimator(CNT_TEMPO_LIGHTS, TEMPO_PIN, NEO_RGB + NEO_KHZ800, NULL);
+NeoAnimator bank1Line = NeoAnimator(CNT_BANK_1_LIGHTS, BANK_1_PIN, NEO_RGB + NEO_KHZ800, NULL);
+NeoAnimator bank2Line = NeoAnimator(CNT_BANK_2_LIGHTS, BANK_2_PIN, NEO_RGB + NEO_KHZ800, NULL);
 
 #define LF 10
 
@@ -74,6 +80,12 @@ void setup() {
   tempoLine.begin();
   tempoLine.show(); // all off
 
+  bank1Line.begin();
+  bank1Line.show();
+
+  bank2Line.begin();
+  bank2Line.show();
+  
   tempoLine.InitializeTempoTracker(0xFFFFFFFF, floor(60 / (float)120 * 1000));
 }
 
@@ -91,6 +103,8 @@ void loop() {
   }
 
   tempoLine.Update();
+  bank1Line.Update();
+  bank2Line.Update();
 }
 
 static void readSerialToCommandBuffer() {
