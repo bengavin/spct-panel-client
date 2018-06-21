@@ -2,21 +2,27 @@
 int extractArgs(String *outBuffer, size_t outBufferLength, char *args) {
   String argString(args);
   int lastSpaceIndex = 0;
+
+  // Scroll forward to the first non-space
+  while(args[lastSpaceIndex] == ' ' && lastSpaceIndex < outBufferLength) {
+    lastSpaceIndex++;
+  }
   
   for(int i = 0; i < outBufferLength && lastSpaceIndex >= 0; i++) {
-    int spaceIndex = argString.indexOf(' ', lastSpaceIndex +1);
-    Serial.print("Space Index: ");
-    Serial.print(spaceIndex, DEC);
-    Serial.print(" Last Space Index: ");
-    Serial.println(lastSpaceIndex, DEC);
+    int spaceIndex = argString.indexOf(' ', lastSpaceIndex);
+    //Serial.print("Last Space Index: ");
+    //Serial.print(lastSpaceIndex, DEC);
+    //Serial.print(" Space Index: ");
+    //Serial.println(spaceIndex, DEC);
     
     if (spaceIndex == -1) {
-      outBuffer[i] = argString.substring(lastSpaceIndex <= 0 ? lastSpaceIndex : (lastSpaceIndex + 1));
+      outBuffer[i] = argString.substring(lastSpaceIndex);
     }
     else {
       outBuffer[i] = argString.substring(lastSpaceIndex, spaceIndex);
     }
-    lastSpaceIndex = spaceIndex;
+    
+    lastSpaceIndex = spaceIndex < 0 ? spaceIndex : spaceIndex + 1;
   }
 
   return lastSpaceIndex;
@@ -42,6 +48,110 @@ int extractArgs(float *outBuffer, size_t outBufferLength, char *args) {
   }
 
   return retVal;
+}
+
+int extractColor(uint32_t *color, char *args)
+{
+  int argInts[] = {-1, -1, -1};
+  int lastIndex = extractArgs(argInts, 3, args);
+  float argFloats[] = { -1.0 };
+  if (lastIndex >= 0) {
+    int floatLastIndex = extractArgs(argFloats, 1, &args[lastIndex]);
+    lastIndex = floatLastIndex >= 0 ? lastIndex + floatLastIndex : floatLastIndex;
+  }
+
+  float alphaVal = argFloats[0] <= 0 ? 1.0 : argFloats[0];
+  uint8_t alpha = (uint8_t)((uint32_t)round(alphaVal * 255) & 0xFF);
+  uint8_t red = (uint8_t)((argInts[2] == -1 ? 0 : argInts[0]) & 0xFF);
+  uint8_t green = (uint8_t)((argInts[3] == -1 ? 0 : argInts[1]) & 0xFF);
+  uint8_t blue = (uint8_t)((argInts[4] == -1 ? 0 : argInts[2]) & 0xFF);
+
+  uint32_t output = ((uint32_t)alpha << 24) +
+                    ((uint32_t)red << 16) +
+                    ((uint32_t)green << 8) +
+                    blue;
+  //Serial.print(F("RGBA -> HEX: "));
+  //Serial.print(red);
+  //Serial.print(F(","));
+  //Serial.print(green);
+  //Serial.print(F(","));
+  //Serial.print(blue);
+  //Serial.print(F(","));
+  //Serial.print(alpha);
+  //Serial.print(F(" -> "));
+  //Serial.print(output >> 16, HEX);
+  //Serial.println(output & 0xFFFF, HEX);
+  
+  *color = output;
+  return lastIndex;
+}
+
+void processPatternSetup(int pattern, NeoAnimator *lineBank, char *patternArgs)
+{
+  Serial.print(F("Processing pattern setup: "));
+  Serial.println(pattern);
+  
+  int colorTempoArgs[2];
+  int lastIndex = extractArgs(colorTempoArgs, 2, patternArgs);
+  char *args = lastIndex >= 0 ? &patternArgs[lastIndex] : NULL;
+  //Serial.print("Args remaining: '");
+  //Serial.print(args);
+  //Serial.println("'");
+  
+  Serial.print(F("Speed: "));
+  Serial.print(colorTempoArgs[0]);
+  Serial.print(F(" Number of Colors: "));
+  Serial.println(colorTempoArgs[1]);
+  
+  uint32_t tempoInterval = colorTempoArgs[0];
+  uint32_t tempoStepMs = floor(60 / (float)tempoInterval * 1000);
+  int numColors = colorTempoArgs[1];
+  uint32_t *patternColors = NULL;
+  if (numColors > 0)
+  {
+    patternColors = malloc(sizeof(uint32_t) * numColors);
+    for (int i = 0; i < numColors && args != NULL; i++)
+    {
+      lastIndex = extractColor(&patternColors[i], args);
+      args = lastIndex >= 0 ? &args[lastIndex] : NULL; 
+      Serial.print(F("Extracted Color: "));
+      Serial.println(patternColors[i], HEX);
+      //Serial.print("Args remaining: '");
+      //Serial.print(args);
+      //Serial.println("'");
+    }
+  }
+  
+  switch(pattern)
+  {
+    case 0: // no pattern (leaves existing pattern)
+      break;
+
+    case 1: // Tempo pattern
+      // interval is interpreted as BPM
+      lineBank->InitializeTempoTracker(patternColors[0], tempoStepMs);
+      
+      break;
+
+    case 2:
+      // Interval is direct ms time
+      lineBank->InitializeTheaterChase(patternColors, numColors, tempoInterval, 8 - numColors, FORWARD, false);
+      break;
+
+    case 3: // Bounce
+      // Interval is direct ms time
+      lineBank->InitializeBounce(patternColors, numColors, tempoInterval, FORWARD, false);
+      break;
+
+    case 4: // Chase 2
+      lineBank->InitializeChase2(patternColors, numColors, tempoInterval, FORWARD, false);
+      break;
+  }
+
+  if (patternColors != NULL) 
+  {
+    free(patternColors);
+  }
 }
 
 void processUnknownCommand(AltSoftSerial *controller) {
@@ -136,9 +246,12 @@ void processSetTempoCommand(AltSoftSerial *controller, char *args) {
 }
 
 void processPlayCommand(AltSoftSerial *controller, char *args) {
-  String argString(args);
-  int row = argString.toInt();
-
+  int argInts[2];
+  int lastIndex = extractArgs(argInts, 2, args);
+  int row = argInts[0];
+  int pattern = argInts[1];
+  char *patternArgs = lastIndex >= 0 ? &args[lastIndex] : NULL;
+  
   Serial.print("Starting panel row ");
   Serial.println(row, DEC);
   
@@ -148,10 +261,22 @@ void processPlayCommand(AltSoftSerial *controller, char *args) {
       break;
 
     case 1:
+      bank1Line.Stop();
+      bank1Line.Reset();
+      if (pattern > -1)
+      {
+        processPatternSetup(pattern, &bank1Line, patternArgs);
+      }
       bank1Line.Start();
       break;
 
     case 2:
+      bank2Line.Stop();
+      bank2Line.Reset();
+      if (pattern > -1)
+      {
+        processPatternSetup(pattern, &bank2Line, patternArgs);
+      }
       bank2Line.Start();
       break;
   }

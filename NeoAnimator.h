@@ -5,7 +5,7 @@
 #include <elapsedMillis.h>
 
 // Implemented Patterns
-enum AnimatorPattern { NONE, TEMPO_TRACKER, THEATER_CHASE };
+enum AnimatorPattern { NONE, TEMPO_TRACKER, THEATER_CHASE, BOUNCE, CHASE2 };
 enum AnimatorDirection { FORWARD, REVERSE };
 
 class NeoAnimator : public Adafruit_NeoPixel 
@@ -61,13 +61,17 @@ class NeoAnimator : public Adafruit_NeoPixel
     }
     
     // Set all pixels to a color (synchronously)
-    void ColorSet(uint32_t color)
+    void ColorSet(uint32_t color, bool shouldShow = true)
     {
         for (int i = 0; i < numPixels(); i++)
         {
             setPixelColor(i, color);
         }
-        show();
+        
+        if (shouldShow)
+        {
+          show();
+        }
     }
     
   public:
@@ -78,7 +82,7 @@ class NeoAnimator : public Adafruit_NeoPixel
     AnimatorDirection Direction;
 
     // Interval (ms) Between animation updates
-    unsigned long Interval;
+    uint32_t Interval;
 
     // Should the pattern repeat itself?
     bool Repeat;
@@ -177,6 +181,14 @@ class NeoAnimator : public Adafruit_NeoPixel
                 TheaterChaseUpdate();
                 break;
 
+              case BOUNCE:
+                BounceUpdate();
+                break;
+
+              case CHASE2:
+                Chase2Update();
+                break;
+                  
               default:
                 break;
             }
@@ -201,6 +213,7 @@ class NeoAnimator : public Adafruit_NeoPixel
                     OnComplete(); // call the user completion callback
                 }
                 _running = Repeat;
+                if (!Repeat) { Reset(); } // if we're not repeating, clear the panel
             }
         }
         else // Direction == REVERSE
@@ -218,6 +231,7 @@ class NeoAnimator : public Adafruit_NeoPixel
                     OnComplete(); // call the completion callback
                 }
                 _running = Repeat;
+                if (!Repeat) { Reset(); } // if we're not repeating, clear the panel
             }
         }
     }
@@ -260,7 +274,7 @@ class NeoAnimator : public Adafruit_NeoPixel
 
   public:
     // Initialize for a Tempo Tracker
-    void InitializeTempoTracker(uint32_t color, uint8_t interval, AnimatorDirection dir = FORWARD, bool repeat = true)
+    void InitializeTempoTracker(uint32_t color, uint32_t interval, AnimatorDirection dir = FORWARD, bool repeat = true)
     {
         CheckInternalComplete();
         FreeColors();
@@ -275,7 +289,7 @@ class NeoAnimator : public Adafruit_NeoPixel
         Direction = dir;
         Repeat = repeat;
 
-        _internalComplete = &TempoTrackerReset;
+        //_internalComplete = &TempoTrackerReset;
     }
 
     void TempoTrackerUpdate()
@@ -295,14 +309,14 @@ class NeoAnimator : public Adafruit_NeoPixel
 
     /* Theater Chase */
     // Initialize for a Theater Chase
-    void InitializeTheaterChase(uint32_t *colors, uint16_t nColors, uint8_t interval, uint8_t nBlanks = 2, AnimatorDirection dir = FORWARD, bool repeat = true)
+    void InitializeTheaterChase(uint32_t *colors, uint16_t nColors, uint32_t interval, uint8_t nBlanks = 2, AnimatorDirection dir = FORWARD, bool repeat = true)
     {
         CheckInternalComplete();
         FreeColors();
         
         Pattern = THEATER_CHASE;
         Interval = interval;
-        TotalSteps = numPixels();
+        TotalSteps = numPixels() + 1;
         Direction = dir;
         Repeat = repeat;
         
@@ -328,7 +342,8 @@ class NeoAnimator : public Adafruit_NeoPixel
     {
         for(int i = 0; i < numPixels(); i++)
         {
-            int j = (CurrentStep + i) % _numColors;
+            int j = CurrentStep > i ? _numColors - (CurrentStep - i) : i - CurrentStep;
+            //int j = (CurrentStep + i) % _numColors;
             int32_t color = Colors == NULL ? 0x00FFFFFF : Colors[j];
             
             setPixelColor(i, color);
@@ -337,6 +352,85 @@ class NeoAnimator : public Adafruit_NeoPixel
         show();
         Increment();
     }
+
+    /* Bounce */
+    void InitializeBounce(uint32_t *colors, uint16_t nColors, uint32_t interval, AnimatorDirection dir = FORWARD, bool repeat = true)
+    {
+      CheckInternalComplete();
+      FreeColors();
+
+      Pattern = BOUNCE;
+      Interval = interval;
+      TotalSteps = (numPixels() - 1) * 2 + 3;
+      Direction = dir;
+      Repeat = repeat;
+      
+      Colors = malloc(sizeof(uint32_t) * nColors);
+      for(int i = 0; i < nColors; i++)
+      {
+          Colors[i] = colors[i];
+      }
+      
+      _numColors = nColors;         
+    }
+
+    void BounceUpdate()
+    {
+        int totalPixels = numPixels();
+        for (int i = 0; i < totalPixels; i++)
+        {
+          int j = i >= _numColors ? _numColors - 1 : i;
+          
+          if (i == CurrentStep) // first half of the scan
+          {
+              //Serial.print(i);
+              setPixelColor(i, Colors[j]);
+          }
+          else if (CurrentStep > totalPixels && i > (TotalSteps - CurrentStep - 3)) // fade to black
+          {
+              setPixelColor(i, DimColor(DimColor(getPixelColor(i))));
+          }
+        }
+        
+        show();
+        Increment();
+    }
+
+  /* Theater Chase Alt */
+  void InitializeChase2(uint32_t *colors, uint16_t nColors, uint32_t interval, AnimatorDirection dir = FORWARD, bool repeat = true)
+  {
+      CheckInternalComplete();
+      FreeColors();
+      
+      Pattern = CHASE2;
+      Interval = interval;
+      TotalSteps = numPixels() + nColors + 1;
+      Direction = dir;
+      Repeat = repeat;
+      
+      Colors = malloc(sizeof(uint32_t) * (nColors));
+      for(int i = 0; i < nColors; i++)
+      {
+          Colors[i] = colors[i];
+      }
+  
+      _numColors = nColors;        
+  }
+
+  void Chase2Update()
+  {
+      ColorSet(0, false);
+    
+      for(int i = 0; i < _numColors; i++)
+      {
+          int pos = CurrentStep - i;
+          if (pos < 0 || pos >= numPixels()) { continue; }
+          setPixelColor(pos, Colors[i]);
+      }
+  
+      show();
+      Increment();
+  }
 
 };
 

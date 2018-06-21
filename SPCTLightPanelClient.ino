@@ -3,6 +3,7 @@
 #include <math.h>
 #include <AltSoftSerial.h>
 #include <Adafruit_NeoPixel.h>
+#include <avr/pgmspace.h>
 #include "NeoAnimator.h"
 
 /* Arduino GPIO PINS IN USE */
@@ -21,28 +22,28 @@ NeoAnimator bank2Line = NeoAnimator(CNT_BANK_2_LIGHTS, BANK_2_PIN, NEO_RGB + NEO
 
 #define LF 10
 
-#define COMMAND_BUFFER_LEN 100
+#define COMMAND_BUFFER_LEN 240
 
 #define CMD_HELLO_LEN 6
-#define CMD_HELLO "HELLO"
+#define CMD_HELLO F("HELLO")
 #define CMD_GOODBYE_LEN 7
-#define CMD_GOODBYE "GOODBYE"
+#define CMD_GOODBYE F("GOODBYE")
 #define CMD_PANEL_OFF_LEN 8
-#define CMD_PANEL_OFF "PANELOFF"
+#define CMD_PANEL_OFF F("PANELOFF")
 #define CMD_SET_TEMPO_LEN 8
-#define CMD_SET_TEMPO "SETTEMPO"
+#define CMD_SET_TEMPO F("SETTEMPO")
 #define CMD_PLAY_LEN 4
-#define CMD_PLAY "PLAY"
+#define CMD_PLAY F("PLAY")
 #define CMD_RESET_LEN 5
-#define CMD_RESET "RESET"
+#define CMD_RESET F("RESET")
 #define CMD_STOP_LEN 4
-#define CMD_STOP "STOP"
+#define CMD_STOP F("STOP")
 #define CMD_SET_COLOR_LEN 8
-#define CMD_SET_COLOR "SETCOLOR"
+#define CMD_SET_COLOR F("SETCOLOR")
 #define CMD_ON_LEN 2
-#define CMD_ON "ON"
+#define CMD_ON F("ON")
 #define CMD_OFF_LEN 3
-#define CMD_OFF "OFF"
+#define CMD_OFF F("OFF")
 
 void processUnknownCommand(AltSoftSerial *controller);
 void processHelloCommand(AltSoftSerial *controller);
@@ -76,7 +77,7 @@ void setup() {
     ; // wait for serial port to finish opening...
   }
 
-  controller.begin(9600);
+  controller.begin(57600);
   tempoLine.begin();
   tempoLine.show(); // all off
 
@@ -92,7 +93,7 @@ void setup() {
 void loop() {
   if (controller.available()) {
     if (commandLen == 0) {
-      Serial.println("Received data on COM port");
+      //Serial.println("Received data on COM port");
     }
     
     readSerialToCommandBuffer();
@@ -112,7 +113,7 @@ static void readSerialToCommandBuffer() {
   if (curByte == LF) {
     // end of current command
     commandComplete = true;
-    commandBuffer[commandLen] = '\0';
+    commandBuffer[commandLen] = 0; //'\0';
   }
   else {
     commandBuffer[commandLen++] = curByte;
@@ -122,38 +123,38 @@ static void readSerialToCommandBuffer() {
 static void resetCommandBuffer() {
   commandComplete = false;
   commandLen = 0;
-  for(int i = 0; i < COMMAND_BUFFER_LEN && commandBuffer[i] != '\0'; i++) { commandBuffer[i] = '\0'; }
+  for(int i = 0; i < COMMAND_BUFFER_LEN && commandBuffer[i] != '\0'; i++) { commandBuffer[i] = 0; }
 }
 
 static void processCommand() {
-  if (strncmp(CMD_HELLO, commandBuffer, CMD_HELLO_LEN) == 0) {
+  if (strncmp_P(commandBuffer, (const char *)CMD_HELLO, CMD_HELLO_LEN) == 0) {
     processHelloCommand(&controller);
   }
-  else if (strncmp(CMD_GOODBYE, commandBuffer, CMD_GOODBYE_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_GOODBYE, CMD_GOODBYE_LEN) == 0) {
     processGoodbyeCommand(&controller);
   }
-  else if (strncmp(CMD_PANEL_OFF, commandBuffer, CMD_PANEL_OFF_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_PANEL_OFF, CMD_PANEL_OFF_LEN) == 0) {
     processCommandPanelOff(&controller);
   }
-  else if (strncmp(CMD_SET_TEMPO, commandBuffer, CMD_SET_TEMPO_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_SET_TEMPO, CMD_SET_TEMPO_LEN) == 0) {
     processSetTempoCommand(&controller, &commandBuffer[CMD_SET_TEMPO_LEN]);
   }
-  else if (strncmp(CMD_RESET, commandBuffer, CMD_RESET_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_RESET, CMD_RESET_LEN) == 0) {
     processResetCommand(&controller, &commandBuffer[CMD_RESET_LEN]);
   }
-  else if (strncmp(CMD_PLAY, commandBuffer, CMD_PLAY_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_PLAY, CMD_PLAY_LEN) == 0) {
     processPlayCommand(&controller, &commandBuffer[CMD_PLAY_LEN]);
   }
-  else if (strncmp(CMD_STOP, commandBuffer, CMD_STOP_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_STOP, CMD_STOP_LEN) == 0) {
     processStopCommand(&controller, &commandBuffer[CMD_STOP_LEN]);
   }
-  else if (strncmp(CMD_SET_COLOR, commandBuffer, CMD_SET_COLOR_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_SET_COLOR, CMD_SET_COLOR_LEN) == 0) {
     processSetColorCommand(&controller, &commandBuffer[CMD_SET_COLOR_LEN]);
   }
-  else if (strncmp(CMD_ON, commandBuffer, CMD_ON_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_ON, CMD_ON_LEN) == 0) {
     processSetLedOnCommand(&controller, &commandBuffer[CMD_ON_LEN]);
   }
-  else if (strncmp(CMD_OFF, commandBuffer, CMD_OFF_LEN) == 0) {
+  else if (strncmp_P(commandBuffer, (const char *)CMD_OFF, CMD_OFF_LEN) == 0) {
     processSetLedOffCommand(&controller, &commandBuffer[CMD_OFF_LEN]);
   }
   else {
